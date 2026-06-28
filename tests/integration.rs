@@ -1,7 +1,9 @@
 use std::fs;
 use std::process::Command;
 
-use nextzip::{detect_format, inspect_archive, pack, unpack, InputFormat, PackOptions};
+use nextzip::{
+    detect_format, inspect_archive, pack, pack_file, unpack, unpack_file, InputFormat, PackOptions,
+};
 
 #[test]
 fn detect_jsonl() {
@@ -508,4 +510,29 @@ fn bitpack_roundtrip() {
         ),
         values
     );
+}
+
+#[test]
+fn file_api_streams_binary_fallback_roundtrip() {
+    let dir = tempfile::tempdir().unwrap();
+    let input = dir.path().join("blob.bin");
+    let archive = dir.path().join("blob.nxz");
+    let restored = dir.path().join("blob.out");
+    let data = (0..(2 * 1024 * 1024))
+        .map(|i| ((i * 37 + i / 251) % 256) as u8)
+        .collect::<Vec<_>>();
+    fs::write(&input, &data).unwrap();
+
+    pack_file(
+        &input,
+        &archive,
+        PackOptions {
+            exact: false,
+            level: 3,
+        },
+    )
+    .unwrap();
+    unpack_file(&archive, &restored).unwrap();
+
+    assert_eq!(fs::read(restored).unwrap(), data);
 }

@@ -1,4 +1,6 @@
-use std::io::{Cursor, Read};
+use std::fs::File;
+use std::io::{Cursor, Read, Seek, SeekFrom, Write};
+use std::path::Path;
 
 use anyhow::{anyhow, Context};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
@@ -18,6 +20,79 @@ pub struct PackOptions {
 pub struct Archive {
     pub header: ArchiveHeader,
     pub payload: Vec<u8>,
+}
+
+pub fn pack_file(input: &Path, output: &Path, options: PackOptions) -> anyhow::Result<()> {
+    let mut file = File::open(input).with_context(|| format!("open {}", input.display()))?;
+    let mut sample = vec![0; 64 * 1024];
+    let sample_len = file
+        .read(&mut sample)
+        .with_context(|| format!("sample {}", input.display()))?;
+    sample.truncate(sample_len);
+    let format = crate::detect_format(&sample);
+
+    if format == InputFormat::BinaryFallback {
+        return pack_fallback_file(input, output, format, options);
+    }
+
+    let bytes = std::fs::read(input).with_context(|| format!("read {}", input.display()))?;
+    let archive = pack(&bytes, options)?;
+    std::fs::write(output, archive).with_context(|| format!("write {}", output.display()))?;
+    Ok(())
+}
+
+pub fn unpack_file(input: &Path, output: &Path) -> anyhow::Result<()> {
+    let mut input_file = File::open(input).with_context(|| format!("open {}", input.display()))?;
+    let (header, payload_len) = read_archive_header(&mut input_file)?;
+    if !header.fallback_used {
+        let bytes = std::fs::read(input).with_context(|| format!("read {}", input.display()))?;
+        let restored = unpack(&bytes)?;
+        std::fs::write(output, restored).with_context(|| format!("write {}", output.display()))?;
+        return Ok(());
+    }
+
+    let (restored_size, output_hash, out) = {
+        let mut payload_reader = std::io::Read::by_ref(&mut input_file).take(payload_len);
+        let mut decoder = ::zstd::stream::read::Decoder::new(&mut payload_reader)
+            .context("open payload decoder")?;
+        let output_dir = output.parent().unwrap_or_else(|| Path::new("."));
+        let mut out = tempfile::NamedTempFile::new_in(output_dir)
+            .with_context(|| format!("create temporary output in {}", output_dir.display()))?;
+        let mut hasher = blake3::Hasher::new();
+        let mut restored_size = 0u64;
+        let mut buffer = [0u8; 64 * 1024];
+
+        loop {
+            let read = decoder.read(&mut buffer).context("decode payload")?;
+            if read == 0 {
+                break;
+            }
+            out.write_all(&buffer[..read])
+                .with_context(|| format!("write {}", output.display()))?;
+            hasher.update(&buffer[..read]);
+            restored_size += read as u64;
+        }
+        out.flush()
+            .with_context(|| format!("flush {}", output.display()))?;
+        drop(decoder);
+        std::io::copy(&mut payload_reader, &mut std::io::sink()).context("drain payload")?;
+
+        (restored_size, *hasher.finalize().as_bytes(), out)
+    };
+    if restored_size != header.original_size || output_hash != header.original_hash {
+        return Err(anyhow!("checksum mismatch"));
+    }
+
+    let mut checksum = [0u8; 32];
+    input_file
+        .read_exact(&mut checksum)
+        .context("read archive checksum")?;
+    if checksum != header.original_hash {
+        return Err(anyhow!("archive checksum does not match header"));
+    }
+    out.persist(output)
+        .map_err(|err| anyhow!("persist {}: {}", output.display(), err.error))?;
+    Ok(())
 }
 
 pub fn pack(input: &[u8], options: PackOptions) -> anyhow::Result<Vec<u8>> {
@@ -170,6 +245,22 @@ fn build_archive(
 }
 
 fn parse_archive(bytes: &[u8]) -> anyhow::Result<Archive> {
+    let parsed = parse_archive_envelope(bytes)?;
+    let header = decode_header(&zstd::decode(parsed.header_compressed)?)?;
+    let payload = zstd::decode(parsed.payload_compressed)?;
+    if parsed.checksum != header.original_hash {
+        return Err(anyhow!("archive checksum does not match header"));
+    }
+    Ok(Archive { header, payload })
+}
+
+struct ArchiveEnvelope<'a> {
+    header_compressed: &'a [u8],
+    payload_compressed: &'a [u8],
+    checksum: [u8; 32],
+}
+
+fn parse_archive_envelope(bytes: &[u8]) -> anyhow::Result<ArchiveEnvelope<'_>> {
     let mut cursor = Cursor::new(bytes);
     let mut magic = [0u8; 4];
     cursor.read_exact(&mut magic)?;
@@ -182,19 +273,111 @@ fn parse_archive(bytes: &[u8]) -> anyhow::Result<Archive> {
     }
     let _flags = cursor.read_u32::<LittleEndian>()?;
     let header_len = cursor.read_u64::<LittleEndian>()? as usize;
-    let mut header_compressed = vec![0; header_len];
-    cursor.read_exact(&mut header_compressed)?;
-    let header = decode_header(&zstd::decode(&header_compressed)?)?;
+    let header_start = cursor.position() as usize;
+    let header_end = header_start
+        .checked_add(header_len)
+        .ok_or_else(|| anyhow!("header length overflow"))?;
+    if header_end > bytes.len() {
+        return Err(anyhow!("truncated header"));
+    }
+    cursor.set_position(header_end as u64);
     let payload_len = cursor.read_u64::<LittleEndian>()? as usize;
-    let mut payload_compressed = vec![0; payload_len];
-    cursor
-        .read_exact(&mut payload_compressed)
-        .context("read payload")?;
-    let payload = zstd::decode(&payload_compressed)?;
+    let payload_start = cursor.position() as usize;
+    let payload_end = payload_start
+        .checked_add(payload_len)
+        .ok_or_else(|| anyhow!("payload length overflow"))?;
+    if payload_end > bytes.len() {
+        return Err(anyhow!("truncated payload"));
+    }
+    cursor.set_position(payload_end as u64);
     let mut checksum = [0u8; 32];
     cursor.read_exact(&mut checksum).context("read checksum")?;
-    if checksum != header.original_hash {
-        return Err(anyhow!("archive checksum does not match header"));
+    Ok(ArchiveEnvelope {
+        header_compressed: &bytes[header_start..header_end],
+        payload_compressed: &bytes[payload_start..payload_end],
+        checksum,
+    })
+}
+
+fn read_archive_header(reader: &mut impl Read) -> anyhow::Result<(ArchiveHeader, u64)> {
+    let mut magic = [0u8; 4];
+    reader.read_exact(&mut magic)?;
+    if &magic != MAGIC {
+        return Err(anyhow!("bad magic"));
     }
-    Ok(Archive { header, payload })
+    let version = reader.read_u32::<LittleEndian>()?;
+    if version != VERSION {
+        return Err(anyhow!("unsupported version {version}"));
+    }
+    let _flags = reader.read_u32::<LittleEndian>()?;
+    let header_len = reader.read_u64::<LittleEndian>()?;
+    let mut header_compressed = vec![0u8; header_len as usize];
+    reader
+        .read_exact(&mut header_compressed)
+        .context("read header")?;
+    let header = decode_header(&zstd::decode(&header_compressed)?)?;
+    let payload_len = reader.read_u64::<LittleEndian>()?;
+    Ok((header, payload_len))
+}
+
+fn pack_fallback_file(
+    input: &Path,
+    output: &Path,
+    format: InputFormat,
+    options: PackOptions,
+) -> anyhow::Result<()> {
+    let (original_size, original_hash) = hash_file(input)?;
+    let mut payload_tmp = tempfile::tempfile().context("create temporary payload")?;
+    let mut input_file = File::open(input).with_context(|| format!("open {}", input.display()))?;
+    ::zstd::stream::copy_encode(&mut input_file, &mut payload_tmp, options.level)
+        .context("encode fallback payload")?;
+    let payload_len = payload_tmp
+        .seek(SeekFrom::End(0))
+        .context("measure payload")?;
+    payload_tmp
+        .seek(SeekFrom::Start(0))
+        .context("rewind payload")?;
+
+    let header = ArchiveHeader {
+        version: VERSION,
+        header_schema_version: 1,
+        original_size,
+        original_hash,
+        format,
+        exact_mode: options.exact,
+        fallback_used: true,
+        schema: Default::default(),
+        row_count: 0,
+        column_plans: Vec::new(),
+    };
+    let header_bytes = zstd::encode(&encode_header(&header)?, options.level)?;
+
+    let mut out = File::create(output).with_context(|| format!("create {}", output.display()))?;
+    out.write_all(MAGIC)?;
+    out.write_u32::<LittleEndian>(VERSION)?;
+    out.write_u32::<LittleEndian>(if options.exact { 1 } else { 0 })?;
+    out.write_u64::<LittleEndian>(header_bytes.len() as u64)?;
+    out.write_all(&header_bytes)?;
+    out.write_u64::<LittleEndian>(payload_len)?;
+    std::io::copy(&mut payload_tmp, &mut out).context("write fallback payload")?;
+    out.write_all(&header.original_hash)?;
+    Ok(())
+}
+
+fn hash_file(path: &Path) -> anyhow::Result<(u64, [u8; 32])> {
+    let mut file = File::open(path).with_context(|| format!("open {}", path.display()))?;
+    let mut hasher = blake3::Hasher::new();
+    let mut size = 0u64;
+    let mut buffer = [0u8; 64 * 1024];
+    loop {
+        let read = file
+            .read(&mut buffer)
+            .with_context(|| format!("read {}", path.display()))?;
+        if read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..read]);
+        size += read as u64;
+    }
+    Ok((size, *hasher.finalize().as_bytes()))
 }

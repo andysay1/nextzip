@@ -21,6 +21,7 @@ Initial technical preview.
 - Mixed log template field-order residuals.
 - `inspect` block-level codec statistics.
 - Directory benchmark mode with optional JSON output.
+- Streaming file pack/unpack path for binary fallback payloads.
 - Reproducible benchmark corpus and benchmark runner.
 - Property-style, dialect, corruption, unit, and integration tests.
 - CI workflow for fmt, clippy, tests, release build, and benchmark smoke.
@@ -32,4 +33,4 @@ Initial technical preview.
 - CSV unusual quoting/escape dialects may still fall back.
 - Logs can preserve mixed field order, but explicit template IDs and
   per-template column groups are future work.
-- Header and payload are manual binary records in this alpha.
+- Structural JSONL/CSV/log paths still build an intermediate table in memory.

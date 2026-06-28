@@ -23,6 +23,7 @@
 - Property-style, CSV dialect, and corrupt archive tests.
 - CI workflow and release checklist.
 - JSONL `--exact` structural raw-line residual path.
+- Streaming file pack/unpack path for binary fallback payloads.
 
 ## Current Strengths
 
@@ -32,6 +33,8 @@
 - Template-style application logs.
 - CSV exports with stable columns and exact line-ending preservation.
 - Correct fallback behavior on high-entropy binary data.
+- Lower memory pressure for large unknown/binary files via streamed fallback
+  payload compression and decompression.
 
 ## Known Gaps
 
@@ -41,4 +44,5 @@
   `canonical_json + formatting_delta` path should reduce exact-mode size.
 - Logs preserve mixed `key=value` field order; future work can add explicit
   template IDs and per-template column groups for smaller payloads.
-- Header and payload chunks use manual binary records.
+- Structural JSONL/CSV/log paths still build the intermediate table in memory;
+  streaming structural encoding is future work.

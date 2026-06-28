@@ -31,6 +31,7 @@ fallback behavior.
 - Structural row-block payload with per-block/per-column codec selection
 - Codecs: dictionary, delta, delta-of-delta, RLE, bitpack, frame-of-reference, raw
 - Packed presence bitmaps and compact string dictionary indexes
+- Streaming file API for binary fallback payloads
 - JSONL `--exact` raw-line residual path when it beats fallback
 - CSV LF/CRLF and header-order preservation
 - Blake3 verification and byte-for-byte roundtrip tests
@@ -64,6 +65,9 @@ nextzip bench benchmarks/data --json results.json
 `pack` always verifies the structural candidate by decoding it. If the result is
 not byte-for-byte identical, or if the structural archive is not smaller than
 fallback, NextZip-S stores `zstd(original)` instead.
+
+For binary fallback files, the CLI writes and reads payload data through zstd
+streams instead of materializing the whole payload in memory.
 
 ## Benchmark Results
 
@@ -106,7 +110,8 @@ CHECKSUM     blake3(original)
 ```
 
 Payload chunks are independently decoded per block and column. `inspect` also
-reports actual block-level codec statistics. See [docs/FORMAT.md](docs/FORMAT.md)
+reports actual block-level codec statistics. Fallback payloads use the same
+container but are streamed by the file API. See [docs/FORMAT.md](docs/FORMAT.md)
 for the current alpha format.
 
 ## Validation
