@@ -4,8 +4,11 @@ use std::path::Path;
 
 use anyhow::{anyhow, Context};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+use serde::Serialize;
 
 use crate::checksum::blake3_bytes;
+use crate::column::payload::CodecStat;
+use crate::column::ColumnPlan;
 use crate::entropy::zstd;
 use crate::formats::table::StoredTable;
 use crate::header::{decode_header, encode_header, ArchiveHeader, InputFormat, MAGIC, VERSION};
@@ -20,6 +23,32 @@ pub struct PackOptions {
 pub struct Archive {
     pub header: ArchiveHeader,
     pub payload: Vec<u8>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ArchiveInspection {
+    pub version: u32,
+    pub header_schema: u32,
+    pub format: InputFormat,
+    pub original_size: u64,
+    pub archive_size: u64,
+    pub compression_ratio: f64,
+    pub fallback: bool,
+    pub exact_mode: bool,
+    pub rows: u64,
+    pub columns: usize,
+    pub blocks: usize,
+    pub size_breakdown: SizeBreakdown,
+    pub column_plans: Vec<ColumnPlan>,
+    pub block_codec_stats: Vec<CodecStat>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SizeBreakdown {
+    pub header_compressed: u64,
+    pub payload_compressed: u64,
+    pub payload_decoded: u64,
+    pub container_overhead: u64,
 }
 
 pub fn pack_file(input: &Path, output: &Path, options: PackOptions) -> anyhow::Result<()> {
@@ -140,7 +169,7 @@ pub fn unpack(bytes: &[u8]) -> anyhow::Result<Vec<u8>> {
     Ok(output)
 }
 
-pub fn inspect_archive(bytes: &[u8]) -> anyhow::Result<String> {
+pub fn inspect_archive_report(bytes: &[u8]) -> anyhow::Result<ArchiveInspection> {
     let parsed = parse_archive_envelope(bytes)?;
     let header_compressed_len = parsed.header_compressed.len();
     let payload_compressed_len = parsed.payload_compressed.len();
@@ -155,39 +184,72 @@ pub fn inspect_archive(bytes: &[u8]) -> anyhow::Result<String> {
     } else {
         bytes.len() as f64 / archive.header.original_size as f64
     };
+    let block_codec_stats = if archive.header.fallback_used {
+        Vec::new()
+    } else {
+        crate::column::payload::codec_stats(&archive.payload)?
+    };
+
+    Ok(ArchiveInspection {
+        version: archive.header.version,
+        header_schema: archive.header.header_schema_version,
+        format: archive.header.format,
+        original_size: archive.header.original_size,
+        archive_size: bytes.len() as u64,
+        compression_ratio: ratio,
+        fallback: archive.header.fallback_used,
+        exact_mode: archive.header.exact_mode,
+        rows: archive.header.row_count,
+        columns: archive.header.column_plans.len(),
+        blocks,
+        size_breakdown: SizeBreakdown {
+            header_compressed: header_compressed_len as u64,
+            payload_compressed: payload_compressed_len as u64,
+            payload_decoded: archive.payload.len() as u64,
+            container_overhead: ARCHIVE_FIXED_OVERHEAD as u64,
+        },
+        column_plans: archive.header.column_plans,
+        block_codec_stats,
+    })
+}
+
+pub fn inspect_archive_json(bytes: &[u8]) -> anyhow::Result<String> {
+    let report = inspect_archive_report(bytes)?;
+    Ok(serde_json::to_string_pretty(&report)?)
+}
+
+pub fn inspect_archive(bytes: &[u8]) -> anyhow::Result<String> {
+    let report = inspect_archive_report(bytes)?;
     let mut out = format!(
         "version: {}\nheader_schema: {}\nformat: {:?}\noriginal_size: {} bytes\narchive_size: {} bytes\ncompression_ratio: {:.4}\nfallback: {}\nrows: {}\ncolumns: {}\nblocks: {}\nsize_breakdown:\n  header_compressed: {} bytes\n  payload_compressed: {} bytes\n  payload_decoded: {} bytes\n  container_overhead: {} bytes",
-        archive.header.version,
-        archive.header.header_schema_version,
-        archive.header.format,
-        archive.header.original_size,
-        bytes.len(),
-        ratio,
-        archive.header.fallback_used,
-        archive.header.row_count,
-        archive.header.column_plans.len(),
-        blocks,
-        header_compressed_len,
-        payload_compressed_len,
-        archive.payload.len(),
-        ARCHIVE_FIXED_OVERHEAD
+        report.version,
+        report.header_schema,
+        report.format,
+        report.original_size,
+        report.archive_size,
+        report.compression_ratio,
+        report.fallback,
+        report.rows,
+        report.columns,
+        report.blocks,
+        report.size_breakdown.header_compressed,
+        report.size_breakdown.payload_compressed,
+        report.size_breakdown.payload_decoded,
+        report.size_breakdown.container_overhead
     );
-    for plan in &archive.header.column_plans {
+    for plan in &report.column_plans {
         out.push_str(&format!(
             "\n- {}: {:?}, {:?}, encoded_estimate={} bytes",
             plan.name, plan.column_type, plan.codec, plan.encoded_len_estimate
         ));
     }
-    if !archive.header.fallback_used {
-        let stats = crate::column::payload::codec_stats(&archive.payload)?;
-        if !stats.is_empty() {
-            out.push_str("\nblock_codec_stats:");
-            for stat in stats {
-                out.push_str(&format!(
-                    "\n  - {}#{} {:?}: chunks={}, bytes={}",
-                    stat.column_name, stat.column_id, stat.codec, stat.chunks, stat.bytes
-                ));
-            }
+    if !report.block_codec_stats.is_empty() {
+        out.push_str("\nblock_codec_stats:");
+        for stat in report.block_codec_stats {
+            out.push_str(&format!(
+                "\n  - {}#{} {:?}: chunks={}, bytes={}",
+                stat.column_name, stat.column_id, stat.codec, stat.chunks, stat.bytes
+            ));
         }
     }
     Ok(out)

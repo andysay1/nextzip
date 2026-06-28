@@ -11,6 +11,9 @@ pub mod formats;
 pub mod header;
 pub mod schema;
 
-pub use archive::{inspect_archive, pack, pack_file, unpack, unpack_file, PackOptions};
+pub use archive::{
+    inspect_archive, inspect_archive_json, inspect_archive_report, pack, pack_file, unpack,
+    unpack_file, ArchiveInspection, PackOptions, SizeBreakdown,
+};
 pub use detect::detect_format;
 pub use header::InputFormat;

@@ -469,6 +469,48 @@ fn bench_directory_outputs_markdown_and_json() {
 }
 
 #[test]
+fn inspect_cli_outputs_json() {
+    let dir = tempfile::tempdir().unwrap();
+    let input = dir.path().join("events.jsonl");
+    let archive = dir.path().join("events.nxz");
+    fs::write(
+        &input,
+        (0..20_000)
+            .map(|i| format!(r#"{{"action":"view","ts":{},"user":{}}}"#, i, i % 4))
+            .collect::<Vec<_>>()
+            .join("\n")
+            + "\n",
+    )
+    .unwrap();
+
+    let pack_output = Command::new(env!("CARGO_BIN_EXE_nextzip"))
+        .arg("pack")
+        .arg(&input)
+        .arg(&archive)
+        .output()
+        .unwrap();
+    assert!(pack_output.status.success());
+
+    let output = Command::new(env!("CARGO_BIN_EXE_nextzip"))
+        .arg("inspect")
+        .arg(&archive)
+        .arg("--json")
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(json["format"], "Jsonl");
+    assert!(json["archive_size"].as_u64().unwrap() > 0);
+    assert!(
+        json["size_breakdown"]["payload_compressed"]
+            .as_u64()
+            .unwrap()
+            > 0
+    );
+    assert!(!json["block_codec_stats"].as_array().unwrap().is_empty());
+}
+
+#[test]
 fn dict_roundtrip() {
     let values = vec!["a".to_string(), "b".to_string(), "a".to_string()];
     let (dict, indexes) = nextzip::codecs::dict::encode(&values);

@@ -19,7 +19,8 @@ Initial technical preview.
 - Template-style log extraction for `timestamp LEVEL key=value ...` streams.
 - JSONL `--exact` structural raw-line residual path when it beats fallback.
 - Mixed log template field-order residuals.
-- `inspect` block-level codec statistics.
+- `inspect` text and JSON reports with size breakdowns and block-level codec
+  statistics.
 - Directory benchmark mode with optional JSON output.
 - Streaming file pack/unpack path for binary fallback payloads.
 - Reproducible benchmark corpus and benchmark runner.

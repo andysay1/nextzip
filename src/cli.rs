@@ -25,6 +25,8 @@ pub enum Command {
     },
     Inspect {
         input: PathBuf,
+        #[arg(long)]
+        json: bool,
     },
     Bench {
         input: PathBuf,

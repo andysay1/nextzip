@@ -3,6 +3,7 @@ use std::io::{Cursor, Read};
 
 use anyhow::{anyhow, Context};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+use serde::Serialize;
 
 use crate::column::ColumnCodec;
 use crate::formats::table::{Cell, LineEnding, StoredColumn, StoredTable};
@@ -10,7 +11,7 @@ use crate::header::InputFormat;
 
 const TARGET_BLOCK_ROWS: usize = 16_384;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct CodecStat {
     pub column_id: usize,
     pub column_name: String,

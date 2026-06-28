@@ -58,6 +58,7 @@ target/release/nextzip inspect data.nxz
 nextzip pack input.jsonl output.nxz
 nextzip unpack output.nxz restored.jsonl
 nextzip inspect output.nxz
+nextzip inspect output.nxz --json
 nextzip bench input.jsonl
 nextzip bench benchmarks/data --json results.json
 ```
@@ -109,10 +110,10 @@ PAYLOAD      zstd(manual binary row-block column chunks)
 CHECKSUM     blake3(original)
 ```
 
-Payload chunks are independently decoded per block and column. `inspect` also
-reports actual block-level codec statistics. Fallback payloads use the same
-container but are streamed by the file API. See [docs/FORMAT.md](docs/FORMAT.md)
-for the current alpha format.
+Payload chunks are independently decoded per block and column. `inspect` reports
+size breakdowns and actual block-level codec statistics as text or JSON.
+Fallback payloads use the same container but are streamed by the file API. See
+[docs/FORMAT.md](docs/FORMAT.md) for the current alpha format.
 
 ## Validation
 

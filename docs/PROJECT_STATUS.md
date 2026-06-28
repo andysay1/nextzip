@@ -17,7 +17,8 @@
 - CSV CRLF line endings and header order preservation.
 - Log template extraction for `timestamp LEVEL key=value ...` streams.
 - Mixed log template field-order preservation.
-- `inspect` block-level codec statistics.
+- `inspect` text and JSON reports with size breakdowns and block-level codec
+  statistics.
 - Directory benchmark mode with optional JSON output.
 - Versioned header schema.
 - Property-style, CSV dialect, and corrupt archive tests.
