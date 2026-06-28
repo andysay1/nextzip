@@ -308,6 +308,45 @@ fn logs_use_template_columns() {
 }
 
 #[test]
+fn logs_support_mixed_template_field_order() {
+    let input = (0..20_000)
+        .map(|i| {
+            if i % 2 == 0 {
+                format!(
+                    "2026-01-01T12:{:02}:{:02}Z INFO user={} action=view item={}",
+                    (i / 60) % 60,
+                    i % 60,
+                    1000 + (i % 128),
+                    9000 + (i % 256)
+                )
+            } else {
+                format!(
+                    "2026-01-01T12:{:02}:{:02}Z WARN item={} latency={} user={}",
+                    (i / 60) % 60,
+                    i % 60,
+                    9000 + (i % 256),
+                    25 + (i % 700),
+                    1000 + (i % 128)
+                )
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+        + "\n";
+    let archive = pack(
+        input.as_bytes(),
+        PackOptions {
+            exact: false,
+            level: 3,
+        },
+    )
+    .unwrap();
+    let report = inspect_archive(&archive).unwrap();
+    assert!(report.contains("__nxz_field_order"));
+    assert_eq!(unpack(&archive).unwrap(), input.as_bytes());
+}
+
+#[test]
 fn fallback_roundtrip_random() {
     let input: Vec<u8> = (0..2048).map(|i| ((i * 73 + 19) % 251) as u8).collect();
     let archive = pack(
@@ -344,6 +383,62 @@ fn bench_outputs_report() {
     assert!(stdout.contains("zstd:"));
     assert!(stdout.contains("gzip:"));
     assert!(stdout.contains("nextzip:"));
+}
+
+#[test]
+fn inspect_outputs_block_codec_stats() {
+    let input = (0..20_000)
+        .map(|i| {
+            format!(
+                r#"{{"action":"{}","ts":{},"user":{}}}"#,
+                ["view", "buy"][i % 2],
+                1_710_000_000 + i,
+                i % 16
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+        + "\n";
+    let archive = pack(
+        input.as_bytes(),
+        PackOptions {
+            exact: false,
+            level: 3,
+        },
+    )
+    .unwrap();
+    let report = inspect_archive(&archive).unwrap();
+    assert!(report.contains("block_codec_stats:"));
+    assert!(report.contains("chunks="));
+}
+
+#[test]
+fn bench_directory_outputs_markdown_and_json() {
+    let dir = tempfile::tempdir().unwrap();
+    let data = dir.path().join("data");
+    fs::create_dir(&data).unwrap();
+    fs::write(
+        data.join("a.jsonl"),
+        (0..50)
+            .map(|i| format!(r#"{{"action":"view","ts":{},"user":{}}}"#, i, i % 3))
+            .collect::<Vec<_>>()
+            .join("\n"),
+    )
+    .unwrap();
+    fs::write(data.join("b.csv"), b"ts,user\n1,2\n3,4\n").unwrap();
+    let json = dir.path().join("results.json");
+    let output = Command::new(env!("CARGO_BIN_EXE_nextzip"))
+        .arg("bench")
+        .arg(&data)
+        .arg("--json")
+        .arg(&json)
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(stdout.contains("| file | format |"));
+    let rows: serde_json::Value = serde_json::from_slice(&fs::read(&json).unwrap()).unwrap();
+    assert_eq!(rows.as_array().unwrap().len(), 2);
 }
 
 #[test]

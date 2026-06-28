@@ -4,6 +4,7 @@ use crate::formats::table::{rows_to_table, Cell, LineEnding, StoredColumn, Store
 use crate::header::InputFormat;
 
 type ParsedTemplateLine = (String, String, Vec<(String, String)>);
+const FIELD_ORDER_COLUMN: &str = "__nxz_field_order";
 
 pub fn parse(input: &[u8]) -> anyhow::Result<StoredTable> {
     let text = std::str::from_utf8(input)?;
@@ -65,7 +66,11 @@ fn parse_template_logs(
         return None;
     }
 
-    let mut names = vec!["timestamp".to_string(), "level".to_string()];
+    let mut names = vec![
+        "timestamp".to_string(),
+        "level".to_string(),
+        FIELD_ORDER_COLUMN.to_string(),
+    ];
     for (_, _, fields) in &parsed {
         for (key, _) in fields {
             if !names.iter().any(|name| name == key) {
@@ -83,11 +88,17 @@ fn parse_template_logs(
         .collect::<Vec<_>>();
 
     for (timestamp, level, fields) in parsed {
+        let field_order = fields
+            .iter()
+            .map(|(key, _)| key.as_str())
+            .collect::<Vec<_>>()
+            .join(",");
         let fields = fields.into_iter().collect::<BTreeMap<_, _>>();
         for column in &mut columns {
             let value = match column.name.as_str() {
                 "timestamp" => Some(Cell::String(timestamp.clone())),
                 "level" => Some(Cell::String(level.clone())),
+                FIELD_ORDER_COLUMN => Some(Cell::String(field_order.clone())),
                 key => fields.get(key).map(|value| parse_log_cell(value)),
             };
             column.values.push(value);
@@ -140,25 +151,55 @@ fn is_template_table(table: &StoredTable) -> bool {
 
 fn reconstruct_template_logs(table: &StoredTable) -> anyhow::Result<Vec<u8>> {
     let mut out = String::new();
+    let field_order_column = table
+        .columns
+        .iter()
+        .find(|column| column.name == FIELD_ORDER_COLUMN);
     for row_idx in 0..table.row_count {
-        for col in &table.columns {
-            if col.name == "timestamp" || col.name == "level" {
-                if !out.ends_with('\n') && !out.is_empty() {
+        write_template_cell(&mut out, table, "timestamp", row_idx);
+        out.push(' ');
+        write_template_cell(&mut out, table, "level", row_idx);
+
+        let field_names = field_order_column
+            .and_then(|column| column.values.get(row_idx))
+            .and_then(|value| value.as_ref())
+            .map(|cell| cell.to_stable_string())
+            .unwrap_or_else(|| {
+                table
+                    .columns
+                    .iter()
+                    .filter(|column| column.name != "timestamp" && column.name != "level")
+                    .filter(|column| column.name != FIELD_ORDER_COLUMN)
+                    .filter(|column| column.values.get(row_idx).is_some_and(Option::is_some))
+                    .map(|column| column.name.clone())
+                    .collect::<Vec<_>>()
+                    .join(",")
+            });
+        for name in field_names.split(',').filter(|name| !name.is_empty()) {
+            if let Some(column) = table.columns.iter().find(|column| column.name == name) {
+                if let Some(cell) = column.values.get(row_idx).and_then(|v| v.as_ref()) {
                     out.push(' ');
-                }
-                if let Some(cell) = col.values.get(row_idx).and_then(|v| v.as_ref()) {
+                    out.push_str(name);
+                    out.push('=');
                     out.push_str(&cell.to_stable_string());
                 }
-            } else if let Some(cell) = col.values.get(row_idx).and_then(|v| v.as_ref()) {
-                out.push(' ');
-                out.push_str(&col.name);
-                out.push('=');
-                out.push_str(&cell.to_stable_string());
             }
         }
         push_line_ending(&mut out, table, row_idx);
     }
     Ok(out.into_bytes())
+}
+
+fn write_template_cell(out: &mut String, table: &StoredTable, name: &str, row_idx: usize) {
+    if let Some(cell) = table
+        .columns
+        .iter()
+        .find(|column| column.name == name)
+        .and_then(|column| column.values.get(row_idx))
+        .and_then(|value| value.as_ref())
+    {
+        out.push_str(&cell.to_stable_string());
+    }
 }
 
 fn push_line_ending(out: &mut String, table: &StoredTable, row_idx: usize) {

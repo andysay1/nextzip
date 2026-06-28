@@ -27,6 +27,7 @@ fallback behavior.
 
 - CLI: `pack`, `unpack`, `inspect`, `bench`
 - Formats: JSONL, CSV, TSV, template-style logs, binary fallback
+- Mixed log templates with per-row field-order preservation
 - Structural row-block payload with per-block/per-column codec selection
 - Codecs: dictionary, delta, delta-of-delta, RLE, bitpack, frame-of-reference, raw
 - Packed presence bitmaps and compact string dictionary indexes
@@ -57,6 +58,7 @@ nextzip pack input.jsonl output.nxz
 nextzip unpack output.nxz restored.jsonl
 nextzip inspect output.nxz
 nextzip bench input.jsonl
+nextzip bench benchmarks/data --json results.json
 ```
 
 `pack` always verifies the structural candidate by decoding it. If the result is
@@ -87,6 +89,13 @@ All benchmark rows were verified with `unpack(pack(x)) == x`. See
 [docs/BENCHMARK_RESULTS.md](docs/BENCHMARK_RESULTS.md) for the full table,
 timings, and methodology.
 
+Directory benchmark mode prints Markdown and can also write machine-readable
+JSON:
+
+```bash
+nextzip bench benchmarks/data --json benchmarks/results/results.json
+```
+
 ## Archive Layout
 
 ```text
@@ -96,8 +105,9 @@ PAYLOAD      zstd(manual binary row-block column chunks)
 CHECKSUM     blake3(original)
 ```
 
-Payload chunks are independently decoded per block and column. See
-[docs/FORMAT.md](docs/FORMAT.md) for the current alpha format.
+Payload chunks are independently decoded per block and column. `inspect` also
+reports actual block-level codec statistics. See [docs/FORMAT.md](docs/FORMAT.md)
+for the current alpha format.
 
 ## Validation
 

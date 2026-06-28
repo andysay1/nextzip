@@ -28,5 +28,7 @@ pub enum Command {
     },
     Bench {
         input: PathBuf,
+        #[arg(long)]
+        json: Option<PathBuf>,
     },
 }

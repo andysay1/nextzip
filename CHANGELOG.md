@@ -18,6 +18,9 @@ Initial technical preview.
 - CSV CRLF/LF and header-order preservation.
 - Template-style log extraction for `timestamp LEVEL key=value ...` streams.
 - JSONL `--exact` structural raw-line residual path when it beats fallback.
+- Mixed log template field-order residuals.
+- `inspect` block-level codec statistics.
+- Directory benchmark mode with optional JSON output.
 - Reproducible benchmark corpus and benchmark runner.
 - Property-style, dialect, corruption, unit, and integration tests.
 - CI workflow for fmt, clippy, tests, release build, and benchmark smoke.
@@ -27,6 +30,6 @@ Initial technical preview.
 ### Known Limitations
 
 - CSV unusual quoting/escape dialects may still fall back.
-- Logs support one common template family; mixed multi-template logs need more
-  work.
+- Logs can preserve mixed field order, but explicit template IDs and
+  per-template column groups are future work.
 - Header is versioned but still bincode encoded in this alpha.

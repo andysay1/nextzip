@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::io::{Cursor, Read};
 
 use anyhow::{anyhow, Context};
@@ -8,6 +9,15 @@ use crate::formats::table::{Cell, LineEnding, StoredColumn, StoredTable};
 use crate::header::InputFormat;
 
 const TARGET_BLOCK_ROWS: usize = 16_384;
+
+#[derive(Debug, Clone)]
+pub struct CodecStat {
+    pub column_id: usize,
+    pub column_name: String,
+    pub codec: ColumnCodec,
+    pub chunks: u64,
+    pub bytes: u64,
+}
 
 pub fn encode_table(
     table: &StoredTable,
@@ -75,6 +85,44 @@ pub fn block_count(bytes: &[u8]) -> anyhow::Result<usize> {
     let mut cursor = Cursor::new(bytes);
     let _table = read_meta(&mut cursor)?;
     Ok(cursor.read_u32::<LittleEndian>()? as usize)
+}
+
+pub fn codec_stats(bytes: &[u8]) -> anyhow::Result<Vec<CodecStat>> {
+    let mut cursor = Cursor::new(bytes);
+    let table = read_meta(&mut cursor)?;
+    let block_count = cursor.read_u32::<LittleEndian>()? as usize;
+    let mut stats = BTreeMap::<(usize, ColumnCodec), (u64, u64)>::new();
+
+    for _ in 0..block_count {
+        let _block_rows = cursor.read_u32::<LittleEndian>()? as usize;
+        for _ in 0..table.columns.len() {
+            let column_id = cursor.read_u32::<LittleEndian>()? as usize;
+            let codec = codec_from_id(cursor.read_u8()?)?;
+            let chunk_len = cursor.read_u64::<LittleEndian>()? as usize;
+            let current = stats.entry((column_id, codec)).or_default();
+            current.0 += 1;
+            current.1 += chunk_len as u64;
+            cursor.set_position(cursor.position() + chunk_len as u64);
+            if cursor.position() > bytes.len() as u64 {
+                return Err(anyhow!("column chunk exceeds payload length"));
+            }
+        }
+    }
+
+    Ok(stats
+        .into_iter()
+        .map(|((column_id, codec), (chunks, bytes))| CodecStat {
+            column_name: table
+                .columns
+                .get(column_id)
+                .map(|column| column.name.clone())
+                .unwrap_or_else(|| format!("col{column_id}")),
+            column_id,
+            codec,
+            chunks,
+            bytes,
+        })
+        .collect())
 }
 
 pub fn estimate_encoded_len(values: &[Option<Cell>], codec: ColumnCodec) -> u64 {

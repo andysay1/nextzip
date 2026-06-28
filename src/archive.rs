@@ -89,6 +89,18 @@ pub fn inspect_archive(bytes: &[u8]) -> anyhow::Result<String> {
             plan.name, plan.column_type, plan.codec, plan.encoded_len_estimate
         ));
     }
+    if !archive.header.fallback_used {
+        let stats = crate::column::payload::codec_stats(&archive.payload)?;
+        if !stats.is_empty() {
+            out.push_str("\nblock_codec_stats:");
+            for stat in stats {
+                out.push_str(&format!(
+                    "\n  - {}#{} {:?}: chunks={}, bytes={}",
+                    stat.column_name, stat.column_id, stat.codec, stat.chunks, stat.bytes
+                ));
+            }
+        }
+    }
     Ok(out)
 }
 

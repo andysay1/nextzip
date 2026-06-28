@@ -28,9 +28,12 @@ Run benchmarks:
 ```bash
 cargo build --release
 python3 scripts/run_benchmarks.py
+target/release/nextzip bench benchmarks/data --json benchmarks/results/results.json
 ```
 
-The runner verifies `unpack(pack(x)) == x` with `cmp -s`.
+The Python runner verifies `unpack(pack(x)) == x` with `cmp -s`. The built-in
+`bench` command can benchmark either one file or a directory and can emit JSON
+for dashboards or release notes.
 
 ## Reading Results
 

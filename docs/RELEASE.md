@@ -15,6 +15,7 @@ cargo test
 cargo build --release
 python3 scripts/generate_corpus.py --rows 100000
 python3 scripts/run_benchmarks.py
+target/release/nextzip bench benchmarks/data --json benchmarks/results/results.json
 ```
 
 Smoke test:
@@ -24,6 +25,7 @@ target/release/nextzip pack benchmarks/data/telemetry.jsonl /tmp/telemetry.nxz
 target/release/nextzip unpack /tmp/telemetry.nxz /tmp/telemetry.jsonl
 cmp -s benchmarks/data/telemetry.jsonl /tmp/telemetry.jsonl
 target/release/nextzip inspect /tmp/telemetry.nxz
+target/release/nextzip bench benchmarks/data --json benchmarks/results/results.json
 ```
 
 Publish artifacts:

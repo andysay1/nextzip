@@ -2,7 +2,7 @@ use std::fs;
 
 use anyhow::Context;
 use clap::Parser;
-use nextzip::bench::bench_file;
+use nextzip::bench::bench_path;
 use nextzip::cli::{Cli, Command};
 use nextzip::{inspect_archive, pack, unpack, PackOptions};
 
@@ -29,8 +29,8 @@ fn main() -> anyhow::Result<()> {
             let bytes = fs::read(&input).with_context(|| format!("read {}", input.display()))?;
             println!("{}", inspect_archive(&bytes)?);
         }
-        Command::Bench { input } => {
-            println!("{}", bench_file(&input)?);
+        Command::Bench { input, json } => {
+            println!("{}", bench_path(&input, json.as_deref())?);
         }
     }
 

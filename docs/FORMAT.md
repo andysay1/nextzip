@@ -42,6 +42,9 @@ for each block:
 Each block chooses codecs independently. Current target block size is 16,384
 rows.
 
+`inspect` reports both header-level column plans and actual block-level codec
+statistics, because each block may choose a different codec for the same column.
+
 ## Column Chunks
 
 All nullable codecs use packed presence bitmaps.
@@ -61,3 +64,10 @@ When `pack --exact` is used for JSONL and the structural candidate beats
 fallback, the payload may store a special `__nxz_raw_line` dictionary/RLE column.
 This preserves original field order, whitespace, and line endings while still
 allowing entropy compression and block-level structural planning.
+
+## Log Template Residual
+
+Template-style logs are represented as semantic columns such as `timestamp`,
+`level`, `user`, `action`, and `latency`. Mixed templates preserve exact
+per-line field order with a special `__nxz_field_order` column, allowing files
+with different `key=value` layouts to roundtrip byte-for-byte.

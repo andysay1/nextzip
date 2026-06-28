@@ -16,6 +16,9 @@
 - Reproducible benchmark corpus and runner.
 - CSV CRLF line endings and header order preservation.
 - Log template extraction for `timestamp LEVEL key=value ...` streams.
+- Mixed log template field-order preservation.
+- `inspect` block-level codec statistics.
+- Directory benchmark mode with optional JSON output.
 - Versioned header schema.
 - Property-style, CSV dialect, and corrupt archive tests.
 - CI workflow and release checklist.
@@ -34,7 +37,8 @@
 
 - CSV quoting style and escape-style preservation is incomplete for unusual
   dialects; such cases remain protected by fallback and byte-for-byte self-test.
-- JSONL `--exact` still intentionally falls back.
-- Logs support one common template family; mixed multi-template logs still need
-  template IDs and per-template columns.
+- JSONL `--exact` has a structural raw-line residual path; a future
+  `canonical_json + formatting_delta` path should reduce exact-mode size.
+- Logs preserve mixed `key=value` field order; future work can add explicit
+  template IDs and per-template column groups for smaller payloads.
 - Header still uses bincode; payload chunks are manual binary.

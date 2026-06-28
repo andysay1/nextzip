@@ -1,3 +1,3 @@
 pub mod compare;
 
-pub use compare::bench_file;
+pub use compare::{bench_file, bench_path};
