@@ -100,7 +100,7 @@ nextzip bench benchmarks/data --json benchmarks/results/results.json
 
 ```text
 MAGIC        NXZ1
-HEADER       zstd(bincode(versioned ArchiveHeader))
+HEADER       zstd(manual binary versioned ArchiveHeader)
 PAYLOAD      zstd(manual binary row-block column chunks)
 CHECKSUM     blake3(original)
 ```

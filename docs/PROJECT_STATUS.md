@@ -41,4 +41,4 @@
   `canonical_json + formatting_delta` path should reduce exact-mode size.
 - Logs preserve mixed `key=value` field order; future work can add explicit
   template IDs and per-template column groups for smaller payloads.
-- Header still uses bincode; payload chunks are manual binary.
+- Header and payload chunks use manual binary records.

@@ -7,7 +7,7 @@ Initial technical preview.
 ### Added
 
 - CLI commands: `pack`, `unpack`, `inspect`, `bench`.
-- `NXZ1` archive container with versioned bincode header schema and manual
+- `NXZ1` archive container with versioned manual binary header schema and manual
   binary structural payload.
 - JSONL, CSV, TSV, log, and binary fallback detection.
 - Byte-for-byte verification before accepting structural archives.
@@ -32,4 +32,4 @@ Initial technical preview.
 - CSV unusual quoting/escape dialects may still fall back.
 - Logs can preserve mixed field order, but explicit template IDs and
   per-template column groups are future work.
-- Header is versioned but still bincode encoded in this alpha.
+- Header and payload are manual binary records in this alpha.

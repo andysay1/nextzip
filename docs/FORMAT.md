@@ -7,16 +7,15 @@ MAGIC        4 bytes     NXZ1
 VERSION      u32 LE
 FLAGS        u32 LE
 HEADER_LEN   u64 LE
-HEADER       zstd(bincode(ArchiveHeader))
+HEADER       zstd(binary ArchiveHeader)
 PAYLOAD_LEN  u64 LE
 PAYLOAD      zstd(binary payload)
 CHECKSUM     32 bytes    blake3(original)
 ```
 
-The public header is still serialized with bincode for compatibility with the
-Rust structures. It carries `header_schema_version = 1` so alpha archives can be
-rejected or migrated as the format changes. Column payloads are manual binary
-records.
+The public header is a manual binary record. It carries
+`header_schema_version = 1` so alpha archives can be rejected or migrated as the
+format changes. Column payloads are manual binary records as well.
 
 ## Structural Payload
 
@@ -37,6 +36,23 @@ for each block:
     CODEC_ID       u8
     CHUNK_LEN      u64
     CHUNK_BYTES
+```
+
+## Header
+
+```text
+VERSION                u32
+HEADER_SCHEMA_VERSION  u32
+ORIGINAL_SIZE          u64
+ORIGINAL_HASH          [u8; 32]
+FORMAT_ID              u8
+EXACT_MODE             u8
+FALLBACK_USED          u8
+ROW_COUNT              u64
+SCHEMA_COLUMN_COUNT    u32
+SCHEMA_COLUMNS[]       name + type + nullable
+COLUMN_PLAN_COUNT      u32
+COLUMN_PLANS[]         name + type + codec + original_len + encoded_estimate
 ```
 
 Each block chooses codecs independently. Current target block size is 16,384

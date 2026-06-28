@@ -24,6 +24,27 @@ fn detect_csv() {
 }
 
 #[test]
+fn manual_header_codec_roundtrips_archive_metadata() {
+    let input = (0..100)
+        .map(|i| format!(r#"{{"action":"view","ts":{},"user":{}}}"#, i, i % 4))
+        .collect::<Vec<_>>()
+        .join("\n")
+        + "\n";
+    let archive = pack(
+        input.as_bytes(),
+        PackOptions {
+            exact: false,
+            level: 3,
+        },
+    )
+    .unwrap();
+    let report = inspect_archive(&archive).unwrap();
+    assert!(report.contains("header_schema: 1"));
+    assert!(report.contains("format: Jsonl"));
+    assert_eq!(unpack(&archive).unwrap(), input.as_bytes());
+}
+
+#[test]
 fn pack_unpack_jsonl() {
     let input = (0..100)
         .map(|i| {

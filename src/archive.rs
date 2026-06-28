@@ -6,7 +6,7 @@ use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use crate::checksum::blake3_bytes;
 use crate::entropy::zstd;
 use crate::formats::table::StoredTable;
-use crate::header::{ArchiveHeader, InputFormat, MAGIC, VERSION};
+use crate::header::{decode_header, encode_header, ArchiveHeader, InputFormat, MAGIC, VERSION};
 
 #[derive(Debug, Clone, Copy)]
 pub struct PackOptions {
@@ -155,7 +155,7 @@ fn build_archive(
         column_plans,
     };
 
-    let header_bytes = zstd::encode(&bincode::serialize(&header)?, options.level)?;
+    let header_bytes = zstd::encode(&encode_header(&header)?, options.level)?;
     let payload_bytes = zstd::encode(&payload, options.level)?;
     let mut out = Vec::new();
     out.extend_from_slice(MAGIC);
@@ -184,13 +184,7 @@ fn parse_archive(bytes: &[u8]) -> anyhow::Result<Archive> {
     let header_len = cursor.read_u64::<LittleEndian>()? as usize;
     let mut header_compressed = vec![0; header_len];
     cursor.read_exact(&mut header_compressed)?;
-    let header: ArchiveHeader = bincode::deserialize(&zstd::decode(&header_compressed)?)?;
-    if header.header_schema_version != 1 {
-        return Err(anyhow!(
-            "unsupported header schema {}",
-            header.header_schema_version
-        ));
-    }
+    let header = decode_header(&zstd::decode(&header_compressed)?)?;
     let payload_len = cursor.read_u64::<LittleEndian>()? as usize;
     let mut payload_compressed = vec![0; payload_len];
     cursor
