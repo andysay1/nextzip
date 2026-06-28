@@ -1,0 +1,131 @@
+<svg width="1280" height="720" viewBox="0 0 1280 720" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">NextZip-S architecture</title>
+  <desc id="desc">Structural compression pipeline from input files to schema, column codecs, entropy compression, archive container, and verified restore.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1280" y2="720" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0B1020"/>
+      <stop offset="0.58" stop-color="#111827"/>
+      <stop offset="1" stop-color="#13251F"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="110" y1="112" x2="1120" y2="610" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#38BDF8"/>
+      <stop offset="0.55" stop-color="#22C55E"/>
+      <stop offset="1" stop-color="#F59E0B"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="12" flood-color="#000000" flood-opacity="0.28"/>
+    </filter>
+    <marker id="arrow" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto" markerUnits="strokeWidth">
+      <path d="M2 2L12 7L2 12" stroke="#A7F3D0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <style>
+      .title { font: 700 40px ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif; fill: #F8FAFC; }
+      .subtitle { font: 500 18px ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif; fill: #CBD5E1; }
+      .label { font: 700 19px ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif; fill: #F8FAFC; }
+      .small { font: 500 14px ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif; fill: #CBD5E1; }
+      .tiny { font: 600 12px ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif; fill: #94A3B8; letter-spacing: 0.04em; }
+      .box { fill: #111827; stroke: #334155; stroke-width: 1.4; }
+      .box2 { fill: #0F172A; stroke: #475569; stroke-width: 1.4; }
+      .chip { fill: #172554; stroke: #38BDF8; stroke-width: 1; }
+      .green { fill: #052E1A; stroke: #22C55E; stroke-width: 1; }
+      .orange { fill: #2A1804; stroke: #F59E0B; stroke-width: 1; }
+      .mutedLine { stroke: #475569; stroke-width: 2; }
+      .flow { stroke: #A7F3D0; stroke-width: 3; marker-end: url(#arrow); }
+    </style>
+  </defs>
+
+  <rect width="1280" height="720" fill="url(#bg)"/>
+  <path d="M92 124C234 36 415 44 578 84C742 124 860 176 1018 132C1116 105 1190 116 1238 146V720H0V199C23 176 52 149 92 124Z" fill="url(#accent)" opacity="0.08"/>
+
+  <text x="72" y="76" class="title">NextZip-S</text>
+  <text x="72" y="108" class="subtitle">Structural program compression for machine-generated JSONL, CSV, TSV and logs</text>
+
+  <g filter="url(#shadow)">
+    <rect x="72" y="160" width="178" height="112" rx="14" class="box"/>
+    <text x="96" y="196" class="tiny">INPUT</text>
+    <text x="96" y="226" class="label">Files</text>
+    <text x="96" y="252" class="small">JSONL / CSV / logs</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="310" y="140" width="192" height="152" rx="14" class="box2"/>
+    <text x="334" y="176" class="tiny">1</text>
+    <text x="334" y="207" class="label">Detect + Parse</text>
+    <text x="334" y="235" class="small">format detection</text>
+    <text x="334" y="257" class="small">records and dialect</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="562" y="140" width="192" height="152" rx="14" class="box2"/>
+    <text x="586" y="176" class="tiny">2</text>
+    <text x="586" y="207" class="label">Schema</text>
+    <text x="586" y="235" class="small">flatten fields</text>
+    <text x="586" y="257" class="small">infer column types</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="814" y="140" width="220" height="152" rx="14" class="box2"/>
+    <text x="838" y="176" class="tiny">3</text>
+    <text x="838" y="207" class="label">Columnize</text>
+    <text x="838" y="235" class="small">row blocks</text>
+    <text x="838" y="257" class="small">packed presence bitmaps</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="74" y="374" width="292" height="214" rx="16" class="box"/>
+    <text x="100" y="410" class="tiny">PER BLOCK / PER COLUMN</text>
+    <text x="100" y="444" class="label">Adaptive Codecs</text>
+    <rect x="100" y="468" width="104" height="30" rx="8" class="chip"/>
+    <text x="116" y="489" class="small">Dictionary</text>
+    <rect x="218" y="468" width="72" height="30" rx="8" class="green"/>
+    <text x="236" y="489" class="small">Delta</text>
+    <rect x="100" y="510" width="128" height="30" rx="8" class="green"/>
+    <text x="116" y="531" class="small">DeltaOfDelta</text>
+    <rect x="242" y="510" width="88" height="30" rx="8" class="orange"/>
+    <text x="259" y="531" class="small">BitPack</text>
+    <rect x="100" y="552" width="172" height="30" rx="8" class="orange"/>
+    <text x="116" y="573" class="small">FrameOfReference</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="426" y="374" width="220" height="214" rx="16" class="box"/>
+    <text x="452" y="410" class="tiny">ARCHIVE BODY</text>
+    <text x="452" y="444" class="label">Binary Payload</text>
+    <text x="452" y="474" class="small">manual chunk format</text>
+    <text x="452" y="498" class="small">zstd entropy layer</text>
+    <text x="452" y="522" class="small">Blake3 checksum</text>
+    <path d="M452 548H612" class="mutedLine"/>
+    <text x="452" y="574" class="small">fallback: zstd(original)</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="706" y="374" width="220" height="214" rx="16" class="box"/>
+    <text x="732" y="410" class="tiny">CONTAINER</text>
+    <text x="732" y="444" class="label">NXZ1</text>
+    <text x="732" y="474" class="small">versioned header</text>
+    <text x="732" y="498" class="small">format + schema</text>
+    <text x="732" y="522" class="small">column plans</text>
+    <text x="732" y="546" class="small">payload length</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="986" y="374" width="220" height="214" rx="16" class="box"/>
+    <text x="1012" y="410" class="tiny">VERIFY</text>
+    <text x="1012" y="444" class="label">Restore</text>
+    <text x="1012" y="474" class="small">decode columns</text>
+    <text x="1012" y="498" class="small">rebuild records</text>
+    <text x="1012" y="522" class="small">compare Blake3</text>
+    <text x="1012" y="546" class="small">byte-for-byte roundtrip</text>
+  </g>
+
+  <path d="M250 216H300" class="flow"/>
+  <path d="M502 216H552" class="flow"/>
+  <path d="M754 216H804" class="flow"/>
+  <path d="M924 292C924 328 232 328 232 364" class="flow"/>
+  <path d="M366 481H416" class="flow"/>
+  <path d="M646 481H696" class="flow"/>
+  <path d="M926 481H976" class="flow"/>
+
+  <rect x="72" y="630" width="1134" height="42" rx="12" fill="#020617" opacity="0.72" stroke="#1E293B"/>
+  <text x="96" y="657" class="small">Formula: file -> structure -> columns -> programs -> residual -> entropy compression; fallback keeps worst-case behavior close to zstd.</text>
+</svg>
