@@ -1,0 +1,14 @@
+/target/
+
+# Generated benchmark corpus and outputs. Recreate with scripts/generate_corpus.py
+/benchmarks/data/
+/benchmarks/results/
+
+# Local editor/system files
+.DS_Store
+*.swp
+*.swo
+
+# Temporary archives from manual testing
+*.nxz
+*.restored
