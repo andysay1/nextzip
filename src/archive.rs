@@ -141,22 +141,36 @@ pub fn unpack(bytes: &[u8]) -> anyhow::Result<Vec<u8>> {
 }
 
 pub fn inspect_archive(bytes: &[u8]) -> anyhow::Result<String> {
-    let archive = parse_archive(bytes)?;
+    let parsed = parse_archive_envelope(bytes)?;
+    let header_compressed_len = parsed.header_compressed.len();
+    let payload_compressed_len = parsed.payload_compressed.len();
+    let archive = archive_from_envelope(parsed)?;
     let blocks = if archive.header.fallback_used {
         0
     } else {
         crate::column::payload::block_count(&archive.payload).unwrap_or(0)
     };
+    let ratio = if archive.header.original_size == 0 {
+        0.0
+    } else {
+        bytes.len() as f64 / archive.header.original_size as f64
+    };
     let mut out = format!(
-        "version: {}\nheader_schema: {}\nformat: {:?}\noriginal_size: {} bytes\nfallback: {}\nrows: {}\ncolumns: {}\nblocks: {}",
+        "version: {}\nheader_schema: {}\nformat: {:?}\noriginal_size: {} bytes\narchive_size: {} bytes\ncompression_ratio: {:.4}\nfallback: {}\nrows: {}\ncolumns: {}\nblocks: {}\nsize_breakdown:\n  header_compressed: {} bytes\n  payload_compressed: {} bytes\n  payload_decoded: {} bytes\n  container_overhead: {} bytes",
         archive.header.version,
         archive.header.header_schema_version,
         archive.header.format,
         archive.header.original_size,
+        bytes.len(),
+        ratio,
         archive.header.fallback_used,
         archive.header.row_count,
         archive.header.column_plans.len(),
-        blocks
+        blocks,
+        header_compressed_len,
+        payload_compressed_len,
+        archive.payload.len(),
+        ARCHIVE_FIXED_OVERHEAD
     );
     for plan in &archive.header.column_plans {
         out.push_str(&format!(
@@ -246,6 +260,10 @@ fn build_archive(
 
 fn parse_archive(bytes: &[u8]) -> anyhow::Result<Archive> {
     let parsed = parse_archive_envelope(bytes)?;
+    archive_from_envelope(parsed)
+}
+
+fn archive_from_envelope(parsed: ArchiveEnvelope<'_>) -> anyhow::Result<Archive> {
     let header = decode_header(&zstd::decode(parsed.header_compressed)?)?;
     let payload = zstd::decode(parsed.payload_compressed)?;
     if parsed.checksum != header.original_hash {
@@ -259,6 +277,8 @@ struct ArchiveEnvelope<'a> {
     payload_compressed: &'a [u8],
     checksum: [u8; 32],
 }
+
+const ARCHIVE_FIXED_OVERHEAD: usize = 4 + 4 + 4 + 8 + 8 + 32;
 
 fn parse_archive_envelope(bytes: &[u8]) -> anyhow::Result<ArchiveEnvelope<'_>> {
     let mut cursor = Cursor::new(bytes);

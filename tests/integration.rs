@@ -43,6 +43,10 @@ fn manual_header_codec_roundtrips_archive_metadata() {
     let report = inspect_archive(&archive).unwrap();
     assert!(report.contains("header_schema: 1"));
     assert!(report.contains("format: Jsonl"));
+    assert!(report.contains("archive_size:"));
+    assert!(report.contains("compression_ratio:"));
+    assert!(report.contains("size_breakdown:"));
+    assert!(report.contains("payload_compressed:"));
     assert_eq!(unpack(&archive).unwrap(), input.as_bytes());
 }
 

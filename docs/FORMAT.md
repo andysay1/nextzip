@@ -58,8 +58,11 @@ COLUMN_PLANS[]         name + type + codec + original_len + encoded_estimate
 Each block chooses codecs independently. Current target block size is 16,384
 rows.
 
-`inspect` reports both header-level column plans and actual block-level codec
-statistics, because each block may choose a different codec for the same column.
+`inspect` reports physical container sizes (`archive_size`,
+`header_compressed`, `payload_compressed`, decoded payload bytes, and fixed
+container overhead), header-level column plans, and actual block-level codec
+statistics. Codec statistics are block-level because each block may choose a
+different codec for the same column.
 
 ## Column Chunks
 
