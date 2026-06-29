@@ -132,6 +132,7 @@ JSONL/CSV/log cases, CSV dialect regressions, and corrupt archive rejection.
 - [Format](docs/FORMAT.md)
 - [Benchmark methodology](docs/BENCHMARK.md)
 - [Benchmark results](docs/BENCHMARK_RESULTS.md)
+- [Uniqueness and usefulness evaluation](docs/UNIQUENESS_AND_USEFULNESS.md)
 - [Project status](docs/PROJECT_STATUS.md)
 - [Release checklist](docs/RELEASE.md)
 - [Commercial licensing](docs/COMMERCIAL_LICENSE.md)
